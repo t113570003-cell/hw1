@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#10151b">
+    <title>霓虹打磚塊</title>
+    <style>
+        :root { color-scheme: dark; --ink: #f4f7f2; --muted: #aab6b8; --lime: #d9ff58; --cyan: #48f0e4; --line: rgba(219,255,246,.18); }
+        * { box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+        body { color: var(--ink); background: #10151b; font-family: "Trebuchet MS", "Noto Sans TC", sans-serif; }
+        #scene { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+        .topbar { position: fixed; z-index: 2; top: 0; left: 0; display: flex; width: 100%; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 26px 34px; pointer-events: none; }
+        .brand { display: flex; align-items: center; gap: 13px; }
+        .brand-mark { display: grid; width: 38px; height: 38px; place-items: center; color: #151a1b; background: var(--lime); font-size: 22px; font-weight: 900; transform: rotate(-6deg); box-shadow: 4px 4px 0 #71852c; }
+        .brand-name { font-size: 17px; font-weight: 800; }
+        .brand-kicker { margin-top: 4px; color: var(--muted); font-size: 10px; font-weight: 700; }
+        .hud { display: flex; align-items: stretch; gap: 9px; pointer-events: auto; }
+        .stat { min-width: 91px; padding: 9px 13px 8px; border: 1px solid var(--line); background: rgba(16,21,27,.76); box-shadow: 3px 3px 0 rgba(72,240,228,.12); }
+        .stat-label { color: var(--muted); font-size: 9px; font-weight: 800; }
+        .stat-value { margin-top: 3px; font-size: 18px; font-variant-numeric: tabular-nums; font-weight: 800; }
+        .stat-value.score { color: var(--lime); }
+        .icon-button, .action-button { min-height: 42px; border: 1px solid var(--line); color: var(--ink); background: #19232a; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+        .icon-button { width: 44px; font-size: 17px; }
+        .icon-button:hover, .action-button:hover { transform: translateY(-2px); border-color: var(--cyan); }
+        .action-button { padding: 0 15px; color: #161b1b; background: var(--lime); border-color: var(--lime); }
+        .bottomline { position: fixed; z-index: 2; right: 34px; bottom: 23px; left: 34px; display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 11px; pointer-events: none; }
+        .keys { display: flex; align-items: center; gap: 7px; }
+        kbd { min-width: 25px; padding: 5px 7px; border: 1px solid var(--line); color: var(--ink); background: rgba(16,21,27,.8); font: 700 10px "Trebuchet MS", sans-serif; text-align: center; }
+        .overlay { position: fixed; z-index: 3; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(10,15,19,.28); }
+        .overlay[hidden] { display: none; }
+        .dialog { width: min(100%, 360px); text-align: center; }
+        .eyebrow { color: var(--cyan); font-size: 10px; font-weight: 900; }
+        .dialog h1 { margin: 9px 0 8px; font-size: clamp(30px, 7vw, 46px); line-height: 1; }
+        .dialog p { margin: 0 0 21px; color: #c1cccd; font-size: 13px; line-height: 1.7; }
+        .dialog .action-button { min-height: 48px; min-width: 174px; font-size: 13px; }
+        .mobile-hint { display: none; }
+        @media (max-width: 620px) {
+            .topbar { align-items: flex-start; gap: 10px; padding: 16px; }
+            .brand { gap: 9px; }
+            .brand-mark { width: 32px; height: 32px; font-size: 18px; }
+            .brand-name { font-size: 14px; }
+            .brand-kicker { font-size: 9px; }
+            .hud { gap: 5px; }
+            .stat { min-width: 57px; padding: 7px 8px; }
+            .stat-label { font-size: 8px; }
+            .stat-value { font-size: 15px; }
+            .icon-button { width: 37px; min-height: 38px; }
+            .bottomline { right: 16px; bottom: 14px; left: 16px; justify-content: center; font-size: 10px; }
+            .desktop-hint { display: none; }
+            .mobile-hint { display: inline; }
+        }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; } }
+    </style>
+</head>
+<body>
+    <canvas id="scene" aria-label="3D 霓虹打磚塊遊戲畫面"></canvas>
+    <header class="topbar">
+        <div class="brand"><div class="brand-mark" aria-hidden="true">B</div><div><div class="brand-name">霓虹打磚塊</div><div class="brand-kicker">ARCADE / 07</div></div></div>
+        <div class="hud" aria-live="polite">
+            <div class="stat"><div class="stat-label">分數</div><div class="stat-value score" id="score">0000</div></div>
+            <div class="stat"><div class="stat-label">生命</div><div class="stat-value" id="lives">●●●</div></div>
+            <button class="icon-button" id="sound" type="button" aria-label="關閉音效" title="音效開關">♫</button>
+            <button class="icon-button" id="restart" type="button" aria-label="重新開始" title="重新開始">↻</button>
+        </div>
+    </header>
+    <div class="bottomline">
+        <span class="desktop-hint keys"><kbd>←</kbd><kbd>→</kbd><span>移動球拍</span><kbd>SPACE</kbd><span>發球</span></span>
+        <span class="mobile-hint">拖曳移動球拍，點一下發球</span>
+        <span>LEVEL <span id="level">01</span></span>
+    </div>
+    <div class="overlay" id="overlay">
+        <section class="dialog" aria-labelledby="dialog-title">
+            <div class="eyebrow">READY PLAYER ONE</div>
+            <h1 id="dialog-title">準備開打？</h1>
+            <p id="dialog-copy">接住彈回來的球，清空所有霓虹磚塊。<br>別讓球掉出場地。</p>
+            <button class="action-button" id="play" type="button">開始遊戲 <span aria-hidden="true">→</span></button>
+        </section>
+    </div>
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+
+        const canvas = document.querySelector('#scene');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.25;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#10151b');
+        scene.fog = new THREE.Fog('#10151b', 24, 52);
+        const camera = new THREE.OrthographicCamera(-10, 10, 11, -11, .1, 100);
+        camera.position.set(0, 0, 32);
+        camera.lookAt(0, 0, 0);
+        scene.add(new THREE.HemisphereLight('#ddfff4', '#29303d', 2.1));
+        const keyLight = new THREE.DirectionalLight('#ffffff', 3.2);
+        keyLight.position.set(-7, 9, 12);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.set(1024, 1024);
+        scene.add(keyLight);
+        const pinkLight = new THREE.PointLight('#ff477e', 28, 18);
+        pinkLight.position.set(8, 3, 3);
+        scene.add(pinkLight);
+        const cyanLight = new THREE.PointLight('#31eee0', 24, 17);
+        cyanLight.position.set(-8, -3, 3);
+        scene.add(cyanLight);
+
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: '#11181d', roughness: .92, metalness: .12 }));
+        floor.position.z = -2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+        const backgroundDots = new THREE.Group();
+        const dotGeometry = new THREE.IcosahedronGeometry(.035, 0);
+        for (let i = 0; i < 95; i++) {
+            const dot = new THREE.Mesh(dotGeometry, new THREE.MeshBasicMaterial({ color: i % 3 ? '#627a7c' : '#d9ff58' }));
+            dot.position.set((Math.random() - .5) * 34, (Math.random() - .5) * 38, -1 + Math.random() * .5);
+            dot.scale.setScalar(.4 + Math.random() * 1.7);
+            backgroundDots.add(dot);
+        }
+        scene.add(backgroundDots);
+
+        const board = new THREE.Group();
+        scene.add(board);
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: '#31434a', metalness: .72, roughness: .25, emissive: '#112126', emissiveIntensity: .65 });
+        const wallGeometry = new THREE.BoxGeometry(.16, 20.5, .7);
+        for (const x of [-8.77, 8.77]) {
+            const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+            wall.position.set(x, 0, .1);
+            wall.castShadow = true;
+            board.add(wall);
+        }
+        const topRail = new THREE.Mesh(new THREE.BoxGeometry(17.54, .16, .7), wallMaterial);
+        topRail.position.set(0, 10.25, .1);
+        board.add(topRail);
+
+        const palette = ['#d9ff58', '#48f0e4', '#ff638c', '#ffb84a', '#9d83ff'];
+        const brickMaterials = palette.map(color => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .24, metalness: .24, roughness: .28 }));
+        const bricks = [];
+        let halfWidth = 8.65;
+        let brickGeometry;
+        function buildBricks() {
+            for (const brick of bricks) board.remove(brick.mesh);
+            bricks.length = 0;
+            if (brickGeometry) brickGeometry.dispose();
+            const columns = Math.max(4, Math.min(9, Math.floor((halfWidth * 2 + .13) / 1.65)));
+            const gap = .13;
+            const brickWidth = (halfWidth * 2 - gap * (columns - 1)) / columns;
+            brickGeometry = new THREE.BoxGeometry(brickWidth, .64, .82);
+            for (let row = 0; row < 5; row++) {
+                for (let column = 0; column < columns; column++) {
+                    const mesh = new THREE.Mesh(brickGeometry, brickMaterials[row % brickMaterials.length]);
+                    const x = -halfWidth + brickWidth / 2 + column * (brickWidth + gap);
+                    const y = 6.2 - row * .91;
+                    mesh.position.set(x, y, .1);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    board.add(mesh);
+                    bricks.push({ mesh, x, y, width: brickWidth, height: .64, row });
+                }
+            }
+        }
+
+        const paddleMaterial = new THREE.MeshStandardMaterial({ color: '#48f0e4', emissive: '#11b8b1', emissiveIntensity: .85, metalness: .48, roughness: .2 });
+        const paddle = new THREE.Mesh(new THREE.BoxGeometry(2.65, .38, 1), paddleMaterial);
+        paddle.position.set(0, -8.45, .3);
+        paddle.castShadow = true;
+        board.add(paddle);
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(.28, 24, 16), new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffe785', emissiveIntensity: 1.2, metalness: .2, roughness: .12 }));
+        ball.castShadow = true;
+        board.add(ball);
+        const ballLight = new THREE.PointLight('#fff0aa', 9, 4);
+        board.add(ballLight);
+
+        const scoreElement = document.querySelector('#score');
+        const livesElement = document.querySelector('#lives');
+        const levelElement = document.querySelector('#level');
+        const overlay = document.querySelector('#overlay');
+        const titleElement = document.querySelector('#dialog-title');
+        const copyElement = document.querySelector('#dialog-copy');
+        const playButton = document.querySelector('#play');
+        const audioButton = document.querySelector('#sound');
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let soundOn = true;
+        let audioContext;
+        let state = 'ready';
+        let paddleVelocity = 0;
+        let lastTime = 0;
+        const keys = new Set();
+        const ballVelocity = new THREE.Vector2(0, 0);
+
+        function tone(frequency, duration, type = 'sine', volume = .055) {
+            if (!soundOn) return;
+            try {
+                audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === 'suspended') audioContext.resume();
+                const oscillator = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                oscillator.type = type;
+                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(Math.max(55, frequency * .58), audioContext.currentTime + duration);
+                gain.gain.setValueAtTime(volume, audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + duration);
+                oscillator.connect(gain);
+                gain.connect(audioContext.destination);
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + duration);
+            } catch (_) { /* Audio is optional when the browser blocks it. */ }
+        }
+        function syncHud() {
+            scoreElement.textContent = String(score).padStart(4, '0');
+            livesElement.textContent = '●'.repeat(lives) + '○'.repeat(3 - lives);
+            levelElement.textContent = String(level).padStart(2, '0');
+        }
+        function showOverlay(title, copy, buttonText) {
+            titleElement.textContent = title;
+            copyElement.innerHTML = copy;
+            playButton.innerHTML = `${buttonText} <span aria-hidden="true">→</span>`;
+            overlay.hidden = false;
+        }
+        function parkBall() {
+            ball.position.set(paddle.position.x, paddle.position.y + .66, .65);
+            ballVelocity.set(0, 0);
+        }
+        function launch() {
+            if (state === 'gameover') resetGame();
+            if (state !== 'ready') return;
+            state = 'playing';
+            overlay.hidden = true;
+            ballVelocity.set((Math.random() < .5 ? -1 : 1) * 5.2, 8.6 + level * .25);
+            tone(560, .12, 'triangle');
+        }
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            level = 1;
+            state = 'ready';
+            paddle.position.x = 0;
+            buildBricks();
+            parkBall();
+            syncHud();
+            showOverlay('準備開打？', '接住彈回來的球，清空所有霓虹磚塊。<br>別讓球掉出場地。', '開始遊戲');
+        }
+        function loseBall() {
+            lives--;
+            syncHud();
+            tone(150, .34, 'sawtooth', .08);
+            if (lives <= 0) {
+                state = 'gameover';
+                showOverlay('再來一局？', `最後得分 <strong>${String(score).padStart(4, '0')}</strong><br>磚塊還等著你。`, '重新開始');
+            } else {
+                state = 'ready';
+                parkBall();
+                showOverlay('球還在等你', '接好球拍，再把球打回去！', '繼續遊戲');
+            }
+        }
+        function clearLevel() {
+            level++;
+            buildBricks();
+            state = 'ready';
+            parkBall();
+            syncHud();
+            tone(880, .32, 'triangle', .08);
+            showOverlay('漂亮！', `第 ${level - 1} 關完成。下一排磚塊已就位。`, '下一關');
+        }
+        function update(dt) {
+            if (keys.has('ArrowLeft') || keys.has('a')) paddleVelocity = -13;
+            else if (keys.has('ArrowRight') || keys.has('d')) paddleVelocity = 13;
+            else paddleVelocity *= .78;
+            paddle.position.x = THREE.MathUtils.clamp(paddle.position.x + paddleVelocity * dt, -halfWidth + 1.45, halfWidth - 1.45);
+            if (state !== 'playing') { parkBall(); return; }
+
+            ball.position.x += ballVelocity.x * dt;
+            ball.position.y += ballVelocity.y * dt;
+            const radius = .28;
+            if (ball.position.x < -halfWidth + radius) {
+                ball.position.x = -halfWidth + radius;
+                ballVelocity.x = Math.abs(ballVelocity.x);
+                tone(300, .07);
+            } else if (ball.position.x > halfWidth - radius) {
+                ball.position.x = halfWidth - radius;
+                ballVelocity.x = -Math.abs(ballVelocity.x);
+                tone(300, .07);
+            }
+            if (ball.position.y > 9.85) {
+                ball.position.y = 9.85;
+                ballVelocity.y = -Math.abs(ballVelocity.y);
+                tone(350, .07);
+            }
+            if (ballVelocity.y < 0 && ball.position.y - radius < paddle.position.y + .22 && ball.position.y > paddle.position.y - .35 && Math.abs(ball.position.x - paddle.position.x) < 1.58) {
+                const offset = (ball.position.x - paddle.position.x) / 1.58;
+                ball.position.y = paddle.position.y + .52;
+                ballVelocity.x = offset * 8 + paddleVelocity * .16;
+                ballVelocity.y = Math.sqrt(Math.max(45, ballVelocity.x ** 2 + ballVelocity.y ** 2)) * .88;
+                tone(500 + Math.abs(offset) * 260, .09, 'square', .035);
+            }
+            for (let index = bricks.length - 1; index >= 0; index--) {
+                const brick = bricks[index];
+                const dx = Math.abs(ball.position.x - brick.x);
+                const dy = Math.abs(ball.position.y - brick.y);
+                if (dx < brick.width / 2 + radius && dy < brick.height / 2 + radius) {
+                    if (brick.width / 2 + radius - dx < brick.height / 2 + radius - dy) ballVelocity.x *= -1;
+                    else ballVelocity.y *= -1;
+                    board.remove(brick.mesh);
+                    bricks.splice(index, 1);
+                    score += (5 - brick.row) * 10;
+                    syncHud();
+                    tone(660 + brick.row * 90, .12, 'triangle', .045);
+                    if (!bricks.length) clearLevel();
+                    break;
+                }
+            }
+            if (ball.position.y < -10.8) loseBall();
+        }
+        function resize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const viewHeight = 22.4;
+            const viewWidth = viewHeight * width / height;
+            camera.left = -viewWidth / 2;
+            camera.right = viewWidth / 2;
+            camera.top = viewHeight / 2;
+            camera.bottom = -viewHeight / 2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height, false);
+            halfWidth = Math.min(8.65, Math.max(4.05, viewWidth / 2 - .55));
+            for (const wall of board.children) if (wall.geometry === wallGeometry) wall.position.x = wall.position.x < 0 ? -halfWidth - .12 : halfWidth + .12;
+            topRail.scale.x = halfWidth * 2 / 17.54;
+            paddle.position.x = THREE.MathUtils.clamp(paddle.position.x, -halfWidth + 1.45, halfWidth - 1.45);
+            buildBricks();
+            parkBall();
+        }
+        function pointPaddle(event) {
+            const bounds = canvas.getBoundingClientRect();
+            const normalizedX = (event.clientX - bounds.left) / bounds.width * 2 - 1;
+            paddle.position.x = THREE.MathUtils.clamp(normalizedX * halfWidth, -halfWidth + 1.45, halfWidth - 1.45);
+            if (state !== 'playing') parkBall();
+        }
+        canvas.addEventListener('pointermove', pointPaddle);
+        canvas.addEventListener('pointerdown', event => { pointPaddle(event); if (state === 'ready') launch(); });
+        window.addEventListener('keydown', event => {
+            const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+            if (['ArrowLeft', 'ArrowRight', ' '].includes(key)) event.preventDefault();
+            keys.add(key);
+            if (key === ' ' || key === 'Enter') launch();
+        });
+        window.addEventListener('keyup', event => keys.delete(event.key.length === 1 ? event.key.toLowerCase() : event.key));
+        window.addEventListener('blur', () => keys.clear());
+        window.addEventListener('resize', resize);
+        playButton.addEventListener('click', launch);
+        document.querySelector('#restart').addEventListener('click', resetGame);
+        audioButton.addEventListener('click', () => {
+            soundOn = !soundOn;
+            audioButton.textContent = soundOn ? '♫' : '♪';
+            audioButton.setAttribute('aria-label', soundOn ? '關閉音效' : '開啟音效');
+            if (soundOn) tone(620, .1);
+        });
+        resize();
+        resetGame();
+        function animate(time) {
+            requestAnimationFrame(animate);
+            const dt = Math.min((time - lastTime) / 1000 || 0, .04);
+            lastTime = time;
+            update(dt);
+            ball.rotation.x += dt * 1.8;
+            ball.rotation.y += dt * 2.4;
+            ballLight.position.copy(ball.position);
+            backgroundDots.rotation.z += dt * .008;
+            renderer.render(scene, camera);
+        }
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
